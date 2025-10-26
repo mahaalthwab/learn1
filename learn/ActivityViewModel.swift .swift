@@ -24,6 +24,8 @@ class ActivityViewModel: ObservableObject {
     @Published var freezedDaysSet: Set<Int> = []
     @Published var isLearnedActive = false
     @Published var isFreezedActive = false
+    
+    
 
     // 🗓️ متغيرات التقويم
     @Published var selectedMonth = Calendar.current.component(.month, from: Date())

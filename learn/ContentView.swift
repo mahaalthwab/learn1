@@ -36,32 +36,29 @@ struct ContentView: View {
                         EmptyView()
                     }
                     
-                    // زر Start learning بدون Capsule
-                    Button(action: {
+                    // زر Start learning بنفس ستايل أزرار الـ glass (TimeFrame)
+                    Button("Start learning") {
                         navigateToActivity = true
-                    }) {
-                        ZStack {
-                            // خلفية بسيطة بدون كبسولة
-                            Rectangle()
-                                .fill(Color.black.opacity(0.25))
-                                .glassEffect(
-                                    .clear
-                                        .tint(Color(hex: "#FF9230").opacity(15))
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 24))
-                            
-                          
-                            
-                            Text("Start learning")
-                            
-    
-                            
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        }
-                        .frame(width: 182, height: 48)
                     }
-                    .padding(.bottom, 36)
+                    .frame(width: 182, height: 48)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .background(
+                        Rectangle()
+                            .fill(Color.black.opacity(0.25))
+                            .glassEffect(
+                                .clear
+                                    .tint(Color(hex: "#FF9230").opacity(0.15))
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(Color(hex: "#FF9230").opacity(0.6), lineWidth: 1.5)
+                    )
+                    .shadow(color: Color(hex: "#FF9230").opacity(0.35), radius: 10, x: 0, y: 5)
+                    .padding(.bottom, 40)
+
                 }
             }
             .preferredColorScheme(.dark) // بإمكانك حذفها والاعتماد على Dark Mode للنظام
@@ -181,6 +178,8 @@ struct ContentView: View {
         .padding(.horizontal, 24)
     }
 }
+
+
 #Preview {
     ContentView()
 }

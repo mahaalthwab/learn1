@@ -165,7 +165,6 @@ struct LogoView: View {
         }
     }
 }
-
 extension Color {
     init(hex: String) {
         let scanner = Scanner(string: hex)
@@ -181,6 +180,7 @@ extension Color {
         self.init(red: r, green: g, blue: b)
     }
 }
+
 
 #Preview {
     GlassButtonView()
