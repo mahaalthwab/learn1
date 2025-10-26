@@ -26,6 +26,8 @@ class ActivityViewModel: ObservableObject {
     @Published var isFreezedActive = false
     
     
+    
+    
 
     // 🗓️ متغيرات التقويم
     @Published var selectedMonth = Calendar.current.component(.month, from: Date())
