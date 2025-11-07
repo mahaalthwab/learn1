@@ -19,8 +19,6 @@ struct FullCalendarView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            
             VStack(spacing: 16) {
                 // 🔹 العنوان والرجوع
                 HStack {
@@ -45,9 +43,7 @@ struct FullCalendarView: View {
                     .padding(.bottom, 30)
                 }
             }
-        }
-        .preferredColorScheme(.dark)
-    }
+        }    }
 }
 
 struct MonthView: View {

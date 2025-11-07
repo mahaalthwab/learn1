@@ -7,9 +7,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var learningTopic: String = "" // ← يبدأ فاضي لأن Swift صارت مجرد placeholder
+    @State private var learningTopic: String = "" // يبدأ فاضي لأن Swift صارت placeholder
     @State private var timeFrame: TimeFrame = .week
     @State private var navigateToActivity = false
+    @StateObject private var activityVM = ActivityViewModel() // موديل مشترك لكل الشاشات
 
     enum TimeFrame: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -17,27 +18,24 @@ struct ContentView: View {
         case year = "Year"
         var id: String { rawValue }
     }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                // يمكنك حذف الخلفية السوداء إن أردتِ الاعتماد على Dark Mode للنظام:
-                // Color.black.ignoresSafeArea()
-                
                 VStack(spacing: 24) {
                     Spacer().frame(height: 20)
-                    
+
                     logoSection
                     greetingSection
                     topicSection
                     timeframeSection
                     Spacer()
-                    
-                    NavigationLink(destination: ActivityView(topic: learningTopic), isActive: $navigateToActivity) {
-                        EmptyView()
-                    }
-                    
-                    // زر Start learning بنفس ستايل أزرار الـ glass (TimeFrame)
+
+                    // زر Start learning
                     Button("Start learning") {
+                        // ✅ يضبط عدد أيام التجميد حسب اختيار البداية
+                        activityVM.configureFreezes(for: timeFrame.rawValue)
+                        // ✅ يفعّل التنقّل
                         navigateToActivity = true
                     }
                     .frame(width: 182, height: 48)
@@ -58,13 +56,18 @@ struct ContentView: View {
                     )
                     .shadow(color: Color(hex: "#FF9230").opacity(0.35), radius: 10, x: 0, y: 5)
                     .padding(.bottom, 40)
-
                 }
             }
-            .preferredColorScheme(.dark) // بإمكانك حذفها والاعتماد على Dark Mode للنظام
+            // ✅ مكان التنقّل الصحيح: على مستوى الـ NavigationStack (خارج الـ VStack)
+            .navigationDestination(isPresented: $navigateToActivity) {
+                ActivityView(topic: learningTopic)
+                    .environmentObject(activityVM) // تمرير نفس الموديل
+            }
         }
-    
+        // ❌ لا ننشئ ViewModel جديد هنا حتى ما تصير نسختين
+        // .environmentObject(ActivityViewModel())
     }
+
     private var logoSection: some View {
         ZStack {
             Circle()
@@ -73,8 +76,6 @@ struct ContentView: View {
                 .shadow(color: .orange.opacity(0.6), radius: 30, x: 0, y: 10)
                 .glassEffect(.clear)
             ZStack {
-               
-                
                 Image(systemName: "flame.fill")
                     .resizable()
                     .scaledToFit()
@@ -84,6 +85,7 @@ struct ContentView: View {
             .shadow(color: .black.opacity(0.7), radius: 18, x: 0, y: 6)
         }
     }
+
     private var greetingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Hello Learner")
@@ -96,39 +98,40 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
     }
-    
+
     private var topicSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("I want to learn")
                 .foregroundColor(.white)
                 .font(.system(size: 20))
-            // ✅ TextField مع placeholder رمادي "Swift"
+            // TextField مع placeholder رمادي "Swift"
             ZStack(alignment: .leading) {
                 if learningTopic.isEmpty {
                     Text("Swift")
                         .foregroundColor(.gray)
                         .opacity(0.6)
                 }
-                
+
                 TextField("", text: $learningTopic)
                     .foregroundColor(.white)
                     .font(.system(size: 18))
                     .padding(.vertical, 10)
                     .accentColor(.orange)
             }
-            
+
             Rectangle()
                 .fill(Color(white: 0.2))
                 .frame(height: 1)
         }
         .padding(.horizontal, 24)
     }
+
     private var timeframeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("I want to learn it in a")
                 .foregroundColor(.white)
                 .font(.system(size: 20))
-            
+
             HStack(spacing: 16) {
                 ForEach(TimeFrame.allCases) { frame in
                     Button(action: {
@@ -179,7 +182,7 @@ struct ContentView: View {
     }
 }
 
-
 #Preview {
     ContentView()
 }
+

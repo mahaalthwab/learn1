@@ -24,10 +24,7 @@ class ActivityViewModel: ObservableObject {
     @Published var freezedDaysSet: Set<Int> = []
     @Published var isLearnedActive = false
     @Published var isFreezedActive = false
-    
-    
-    
-    
+    @Published var goalCompleted = false
 
     // 🗓️ متغيرات التقويم
     @Published var selectedMonth = Calendar.current.component(.month, from: Date())
@@ -56,6 +53,17 @@ class ActivityViewModel: ObservableObject {
         checkForNewDay()
     }
 
+    // MARK: - Public API to mark today and persist by full date
+    func markLearnedToday(date: Date = Date()) {
+        setState(for: date, .learned)
+        saveDayStates()
+    }
+
+    func markFreezedToday(date: Date = Date()) {
+        setState(for: date, .freezed)
+        saveDayStates()
+    }
+
     // 🟠 المستخدم ضغط زر "تعلم"
     func logAsLearned() {
         guard !isLearnedToday && !isFreezedToday else { return }
@@ -64,16 +72,19 @@ class ActivityViewModel: ObservableObject {
         learnedDays += 1
         streakCount += 1
 
-        // ✅ نحدد اليوم الحالي
         let day = Calendar.current.component(.day, from: Date())
         learnedDaysSet.insert(day)
 
-        // ✅ سجل بالتاريخ الكامل
+        // سجل اليوم كتاريخ كامل ليظهر في التقويم الكامل
         setState(for: Date(), .learned)
+        saveDayStates()
+
+        if streakCount >= 3 {
+            goalCompleted = true
+        }
 
         saveActionDate()
         saveData()
-        saveDayStates()
     }
 
     // 🔵 المستخدم ضغط زر "تجميد"
@@ -85,20 +96,20 @@ class ActivityViewModel: ObservableObject {
         if freezedDays < maxFreezes {
             isFreezedToday = true
             freezedDays += 1
-
-            // ✅ نضيف اليوم إلى مجموعة الأيام المجمّدة
             freezedDaysSet.insert(day)
+            streakCount += 1
 
-            // ✅ سجل بالتاريخ الكامل
+            // سجل اليوم كتاريخ كامل ليظهر في التقويم الكامل
             setState(for: Date(), .freezed)
-        } else {
-            // ❗ تجاوز الحد → تصفير الستريك
-            streakCount = 0
+            saveDayStates()
+        }
+
+        if streakCount >= 3 {
+            goalCompleted = true
         }
 
         saveActionDate()
         saveData()
-        saveDayStates()
     }
 
     // 🕛 حفظ تاريخ آخر مرة ضغط فيها المستخدم
@@ -119,6 +130,8 @@ class ActivityViewModel: ObservableObject {
         let freezedArray = Array(freezedDaysSet)
         UserDefaults.standard.set(learnedArray, forKey: "learnedDaysSet")
         UserDefaults.standard.set(freezedArray, forKey: "freezedDaysSet")
+        UserDefaults.standard.set(maxFreezes, forKey: "maxFreezes")
+
     }
 
     // 🔁 تحميل البيانات المحفوظة
@@ -135,7 +148,12 @@ class ActivityViewModel: ObservableObject {
         if let freezedArray = UserDefaults.standard.array(forKey: "freezedDaysSet") as? [Int] {
             freezedDaysSet = Set(freezedArray)
         }
+
+        // 👇 مهم: يكون خارج if السابقة عشان ينقرأ دايمًا
+        let savedMax = UserDefaults.standard.integer(forKey: "maxFreezes")
+        if savedMax > 0 { maxFreezes = savedMax }
     }
+
 
     // 🔄 إعادة التهيئة عند اختيار مادة جديدة
     func resetProgress() {
@@ -144,12 +162,31 @@ class ActivityViewModel: ObservableObject {
         streakCount = 0
         isLearnedToday = false
         isFreezedToday = false
+        goalCompleted = false
         learnedDaysSet.removeAll()
         freezedDaysSet.removeAll()
         dayStates.removeAll()
         saveData()
         saveDayStates()
+        
     }
+    
+    // MARK: - Initial freeze quota by timeframe
+    func configureFreezes(for initialChoiceRawValue: String) {
+        switch initialChoiceRawValue {
+        case "Week":
+            self.maxFreezes = 2
+        case "Month":
+            self.maxFreezes = 8
+        case "Year":
+            self.maxFreezes = 96
+        default:
+            break
+        }
+    }
+
+     
+    
 
     // 🌙 يتحقق إذا بدأ يوم جديد (بعد ١٢ صباحًا)
     private func checkForNewDay() {
@@ -200,12 +237,23 @@ class ActivityViewModel: ObservableObject {
 
     func color(for date: Date) -> Color {
         switch state(for: date) {
-        case .learned:
-            return Color(red: 162/255, green: 73/255, blue: 33/255) // برتقالي
-        case .freezed:
-            return Color(red: 54/255, green: 124/255, blue: 135/255) // أزرق
-        case .none:
-            return Color.gray.opacity(0.2)
+            case .learned:
+                return Color(red: 162/255, green: 73/255, blue: 33/255) // برتقالي
+            case .freezed:
+                return Color(red: 54/255, green: 124/255, blue: 135/255) // أزرق
+            case .none:
+                return Color.gray.opacity(0.2)
         }
     }
+ 
+
 }
+
+
+
+ 
+
+
+
+
+

@@ -11,7 +11,7 @@ struct LearningGoalView: View {
     @State private var timeFrame: TimeFrame = .month
     @State private var navigateToActivity = false
     @State private var showConfirmation = false // ✅ حالة ظهور شعار التأكيد
-    @StateObject private var viewModel = ActivityViewModel() // ✅ نربط نفس المودل
+    @EnvironmentObject private var viewModel: ActivityViewModel // ← استخدام نفس الموديل المشترك
 
     enum TimeFrame: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -23,8 +23,6 @@ struct LearningGoalView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
-                
                 VStack(alignment: .leading, spacing: 30) {
                     
                     // العنوان وحقل الإدخال
@@ -97,8 +95,9 @@ struct LearningGoalView: View {
                 .padding(.top, 40)
                 
                 // ✅ التنقل
-                NavigationLink(destination: ActivityView(topic: learningTopic), isActive: $navigateToActivity) {
-                    EmptyView()
+                .navigationDestination(isPresented: $navigateToActivity) {
+                    ActivityView(topic: learningTopic)
+                        .environmentObject(viewModel) // ← تمرير نفس الموديل
                 }
                 
                 // ✅ مربع التأكيد
@@ -135,8 +134,14 @@ struct LearningGoalView: View {
                                 
                                 Button(action: {
                                     withAnimation {
-                                        // ✅ تصفير كل القيم قبل الانتقال
+                                        // ✅ تصفير كل القيم
                                         viewModel.resetProgress()
+                                        // ✅ ضبط عدد التجميد حسب المدة الجديدة
+                                        viewModel.configureFreezes(for: timeFrame.rawValue)
+                                        // (اختياري) نحفظ الموضوع لو تبين تستخدمينه لاحقًا
+                                        // UserDefaults.standard.set(learningTopic, forKey: "learningTopic")
+                                        UserDefaults.standard.set(viewModel.maxFreezes, forKey: "maxFreezes")
+
                                         showConfirmation = false
                                         navigateToActivity = true
                                     }
@@ -164,7 +169,6 @@ struct LearningGoalView: View {
             .navigationTitle("Learning Goal")
             .navigationBarTitleDisplayMode(.inline)
             
-            // ✅ زر التشيك
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -179,21 +183,20 @@ struct LearningGoalView: View {
                     }
                 }
             }
-            .preferredColorScheme(.dark)
+            .onAppear {
+                switch viewModel.maxFreezes {
+                case 2:   timeFrame = .week
+                case 8:   timeFrame = .month
+                case 96:  timeFrame = .year
+                default:  break
+                }
+            }
+
         }
     }
 }
 
 #Preview {
     LearningGoalView()
+        .environmentObject(ActivityViewModel())
 }
-
-
-
-
-
-
-
-
-
-
