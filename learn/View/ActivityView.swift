@@ -5,15 +5,14 @@
 import SwiftUI
 
 struct ActivityView: View {
-    var topic: String = "Swift"
-    @EnvironmentObject var viewModel: ActivityViewModel      // ✅ ناخذ نفس الموديل من الصفحة الأولى
+    @EnvironmentObject var viewModel: ActivityViewModel
     @State private var navigateToChange = false
     
     var body: some View {
         NavigationStack{
             ZStack {
                 VStack(spacing: 10) {
-                    // 👇 هنا تنادين الأقسام
+                    // الأقسام
                     headerSection
                     calendarBox
                     Spacer()
@@ -39,14 +38,9 @@ struct ActivityView: View {
                                 .padding(.horizontal, 30)
                             
                             Button(action: {
-                                // إعادة تعيين الهدف (تصفير كل شيء) + الانتقال لصفحة change
+                                // ✅ تصفير كل شيء والانتقال لتحديد هدف جديد
                                 withAnimation {
-                                    viewModel.streakCount = 0
-                                    viewModel.learnedDays = 0
-                                    viewModel.freezedDays = 0
-                                    viewModel.learnedDaysSet.removeAll()
-                                    viewModel.freezedDaysSet.removeAll()
-                                    viewModel.goalCompleted = false
+                                    viewModel.resetProgress()
                                 }
                                 navigateToChange = true
                             }) {
@@ -63,10 +57,17 @@ struct ActivityView: View {
                             }
                             
                             Button(action: {
-                                // إعادة تشغيل نفس الهدف بنفس المدة
+                                // ✅ إعادة تشغيل نفس الهدف بنفس المدة الحالية
                                 withAnimation {
-                                    viewModel.streakCount = 0
-                                    viewModel.goalCompleted = false
+                                    let tf: String
+                                    switch viewModel.goalDurationDays {
+                                    case 7:   tf = "Week"
+                                    case 30:  tf = "Month"
+                                    case 365: tf = "Year"
+                                    default:  tf = "Week"
+                                    }
+                                    viewModel.resetProgress()
+                                    viewModel.startGoal(for: tf)
                                 }
                             }) {
                                 Text("Set same learning goal and duration")
@@ -149,7 +150,6 @@ struct ActivityView: View {
                             }
                             .disabled(viewModel.isFreezedToday || viewModel.isLearnedToday)
                             
-                            // ✅ هذا النص الآن يعكس maxFreezes المضبوط في الصفحة الأولى
                             Text("\(viewModel.freezedDays) out of \(viewModel.maxFreezes) Freezes used")
                                 .font(.caption)
                                 .foregroundColor(Color.gray.opacity(0.7))
@@ -158,11 +158,15 @@ struct ActivityView: View {
                     }
                 }
                 
-                // NavigationDestination للانتقال إلى صفحة تغيير الهدف
+                // الانتقال إلى صفحة تغيير الهدف
                 .navigationDestination(isPresented: $navigateToChange) {
                     LearningGoalView()
-                        .environmentObject(viewModel)   // ✅ نمرّر نفس الموديل
+                        .environmentObject(viewModel)
                 }
+            }
+            .onAppear {
+                // ✅ تحقّق عند الفتح إن كانت الفترة انتهت
+                viewModel.checkGoalPeriod()
             }
             .navigationBarHidden(true)
         }
@@ -196,7 +200,7 @@ extension ActivityView {
                 }
                 NavigationLink(
                     destination: LearningGoalView()
-                        .environmentObject(viewModel)   // ✅ نمرّر نفس الموديل
+                        .environmentObject(viewModel)
                 ) {
                     Image("sign")
                         .resizable()
@@ -243,9 +247,17 @@ extension ActivityView {
                     
                     // ⬇️ البطاقات (Learned / Freezed)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Learning \(topic.isEmpty ? "Swift" : topic)")
+                        // ✅ يقرأ اسم المادة من الموديل مباشرة
+                        Text("Learning \(viewModel.learningTopic.isEmpty ? "Swift" : viewModel.learningTopic)")
                             .font(.headline)
                             .foregroundColor(.white)
+                            .padding(.horizontal)
+                        
+                        // ✅ عرض الأيام المتبقية
+                        let remain = viewModel.remainingDays()
+                        Text("Remaining: \(remain) day\(remain == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundColor(.gray)
                             .padding(.horizontal)
                         
                         HStack(spacing: 16) {
@@ -370,7 +382,7 @@ extension ActivityView {
         
         var body: some View {
             VStack(spacing: 8) {
-                // 🔹 عنوان الشهر والسنة (من بداية الأسبوع الحالية)
+                // 🔹 عنوان الشهر والسنة
                 HStack {
                     let headerMonth = Calendar.current.component(.month, from: currentWeekStart)
                     let headerYear = Calendar.current.component(.year, from: currentWeekStart)
@@ -405,7 +417,7 @@ extension ActivityView {
                 }
                 .padding(.horizontal)
                 
-                // 🔹 أسماء الأيام حسب Locale/التقويم
+                // 🔹 أسماء الأيام
                 HStack(spacing: 18) {
                     ForEach(weekdaySymbols(), id: \.self) { day in
                         Text(day)
@@ -450,17 +462,13 @@ extension ActivityView {
         
         func previousDays() {
             if let newStart = Calendar.current.date(byAdding: .day, value: -7, to: currentWeekStart) {
-                withAnimation(.easeInOut) {
-                    currentWeekStart = newStart
-                }
+                withAnimation(.easeInOut) { currentWeekStart = newStart }
             }
         }
         
         func nextDays() {
             if let newStart = Calendar.current.date(byAdding: .day, value: 7, to: currentWeekStart) {
-                withAnimation(.easeInOut) {
-                    currentWeekStart = newStart
-                }
+                withAnimation(.easeInOut) { currentWeekStart = newStart }
             }
         }
         
@@ -470,6 +478,8 @@ extension ActivityView {
         }
     }
 }
+
+
 
 
 

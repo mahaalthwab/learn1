@@ -7,10 +7,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var learningTopic: String = "" // يبدأ فاضي لأن Swift صارت placeholder
+    @AppStorage("learningTopic") private var learningTopic: String = "" // ✅ يحفظ النص محليًا
     @State private var timeFrame: TimeFrame = .week
     @State private var navigateToActivity = false
-    @StateObject private var activityVM = ActivityViewModel() // موديل مشترك لكل الشاشات
+    @StateObject private var activityVM = ActivityViewModel()
 
     enum TimeFrame: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -31,11 +31,10 @@ struct ContentView: View {
                     timeframeSection
                     Spacer()
 
-                    // زر Start learning
                     Button("Start learning") {
-                        // ✅ يضبط عدد أيام التجميد حسب اختيار البداية
-                        activityVM.configureFreezes(for: timeFrame.rawValue)
-                        // ✅ يفعّل التنقّل
+                        // ⬅️ ننقل قيمة الحقل إلى الموديل (مصدر الحقيقة) ونبدأ الهدف بالفترة المختارة
+                        activityVM.learningTopic = learningTopic
+                        activityVM.startGoal(for: timeFrame.rawValue) // ← يحدد start date + المدة + يضبط التجميد
                         navigateToActivity = true
                     }
                     .frame(width: 182, height: 48)
@@ -45,8 +44,7 @@ struct ContentView: View {
                         Rectangle()
                             .fill(Color.black.opacity(0.25))
                             .glassEffect(
-                                .clear
-                                    .tint(Color(hex: "#FF9230").opacity(0.15))
+                                .clear.tint(Color(hex: "#FF9230").opacity(0.15))
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 22))
                     )
@@ -58,14 +56,12 @@ struct ContentView: View {
                     .padding(.bottom, 40)
                 }
             }
-            // ✅ مكان التنقّل الصحيح: على مستوى الـ NavigationStack (خارج الـ VStack)
+            // ✅ ActivityView ما يستقبل topic الآن — نفس الموديل يوصل له
             .navigationDestination(isPresented: $navigateToActivity) {
-                ActivityView(topic: learningTopic)
-                    .environmentObject(activityVM) // تمرير نفس الموديل
+                ActivityView()
+                    .environmentObject(activityVM)
             }
         }
-        // ❌ لا ننشئ ViewModel جديد هنا حتى ما تصير نسختين
-        // .environmentObject(ActivityViewModel())
     }
 
     private var logoSection: some View {
@@ -75,14 +71,12 @@ struct ContentView: View {
                 .frame(width: 140, height: 140)
                 .shadow(color: .orange.opacity(0.6), radius: 30, x: 0, y: 10)
                 .glassEffect(.clear)
-            ZStack {
-                Image(systemName: "flame.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 60, height: 60)
-                    .foregroundColor(.orange)
-            }
-            .shadow(color: .black.opacity(0.7), radius: 18, x: 0, y: 6)
+            Image(systemName: "flame.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 60, height: 60)
+                .foregroundColor(.orange)
+                .shadow(color: .black.opacity(0.7), radius: 18, x: 0, y: 6)
         }
     }
 
@@ -104,7 +98,6 @@ struct ContentView: View {
             Text("I want to learn")
                 .foregroundColor(.white)
                 .font(.system(size: 20))
-            // TextField مع placeholder رمادي "Swift"
             ZStack(alignment: .leading) {
                 if learningTopic.isEmpty {
                     Text("Swift")
@@ -135,30 +128,24 @@ struct ContentView: View {
             HStack(spacing: 16) {
                 ForEach(TimeFrame.allCases) { frame in
                     Button(action: {
-                        withAnimation(.spring()) {
-                            timeFrame = frame
-                        }
+                        withAnimation(.spring()) { timeFrame = frame }
                     }) {
                         Text(frame.rawValue)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(timeFrame == frame ? .white : .gray)
                             .frame(minWidth: 90, minHeight: 44)
-                            // خلفية بنفس ستايل زر الزجاج (بدون Capsule)
                             .background(
                                 Rectangle()
                                     .fill(Color.black.opacity(0.25))
                                     .glassEffect(
-                                        .clear
-                                            .tint(
-                                                (timeFrame == frame
-                                                 ? Color(hex: "#FF9230")
-                                                 : Color.gray
-                                                ).opacity(0.15)
-                                            )
+                                        .clear.tint(
+                                            (timeFrame == frame
+                                             ? Color(hex: "#FF9230")
+                                             : Color.gray).opacity(0.15)
+                                        )
                                     )
                                     .clipShape(RoundedRectangle(cornerRadius: 22))
                             )
-                            // إطار بدون Capsule
                             .overlay(
                                 RoundedRectangle(cornerRadius: 22)
                                     .stroke(
@@ -185,4 +172,7 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
+
+
+
 

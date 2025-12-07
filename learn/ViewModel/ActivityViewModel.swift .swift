@@ -9,6 +9,11 @@ import SwiftUI
 import Combine
 
 class ActivityViewModel: ObservableObject {
+    // ✅ اسم المادة مع حفظ تلقائي
+    @Published var learningTopic: String {
+        didSet { UserDefaults.standard.set(learningTopic, forKey: "learningTopic") }
+    }
+
     // 🧠 المتغيرات الي تتغير مع الوقت
     @Published var learnedDays = 0
     @Published var freezedDays = 0
@@ -28,29 +33,61 @@ class ActivityViewModel: ObservableObject {
 
     // 🗓️ متغيرات التقويم
     @Published var selectedMonth = Calendar.current.component(.month, from: Date())
-    @Published var selectedYear = Calendar.current.component(.year, from: Date())
-    @Published var selectedDay = 24
-    @Published var startDay = 20
-    @Published var endDay = 26
-    @Published var showPicker = false
+    @Published var selectedYear  = Calendar.current.component(.year,  from: Date())
+    @Published var selectedDay   = 24
+    @Published var startDay      = 20
+    @Published var endDay        = 26
+    @Published var showPicker    = false
 
-    private let lastActionDateKey = "lastActionDate"
+    private let lastActionDateKey   = "lastActionDate"
 
     // ✅ تخزين حالات الأيام حسب التاريخ الكامل
     enum DayState: String, Codable {
-        case none
-        case learned
-        case freezed
+        case none, learned, freezed
     }
-
     @Published private(set) var dayStates: [String: DayState] = [:] // key = "yyyy-MM-dd"
-
     private let dayStatesKey = "dayStates.v1"
 
+    // 🟧 مدة الهدف المعتمدة على الاختيار + تاريخ بداية الهدف
+    @Published var goalStartDate: Date? {
+        didSet {
+            if let d = goalStartDate {
+                UserDefaults.standard.set(d, forKey: goalStartDateKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: goalStartDateKey)
+            }
+        }
+    }
+    @Published var goalDurationDays: Int = 7 { // افتراضي أسبوع
+        didSet { UserDefaults.standard.set(goalDurationDays, forKey: goalDurationDaysKey) }
+    }
+    private let goalStartDateKey   = "goalStartDate"
+    private let goalDurationDaysKey = "goalDurationDays"
+
+    // MARK: - Init
     init() {
+        // ⬇️ اقرأ اسم المادة المحفوظ
+        self.learningTopic = UserDefaults.standard.string(forKey: "learningTopic") ?? ""
+
         loadSavedData()
         loadDayStates()
+        // ⬇️ اقرأ إعدادات مدة الهدف
+        if let d = UserDefaults.standard.object(forKey: goalStartDateKey) as? Date {
+            self.goalStartDate = d
+        }
+        let gd = UserDefaults.standard.integer(forKey: goalDurationDaysKey)
+        self.goalDurationDays = gd == 0 ? 7 : gd
+
         checkForNewDay()
+        checkGoalPeriod()
+    }
+
+    // 👇 دالة مريحة لتغيير المادة (مع خيار إعادة التقدّم)
+    func updateTopic(_ newTopic: String, resetProgressIfChanged: Bool = true) {
+        let trimmed = newTopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != learningTopic else { return }
+        learningTopic = trimmed
+        if resetProgressIfChanged { resetProgress() }
     }
 
     // MARK: - Public API to mark today and persist by full date
@@ -75,16 +112,13 @@ class ActivityViewModel: ObservableObject {
         let day = Calendar.current.component(.day, from: Date())
         learnedDaysSet.insert(day)
 
-        // سجل اليوم كتاريخ كامل ليظهر في التقويم الكامل
         setState(for: Date(), .learned)
         saveDayStates()
 
-        if streakCount >= 3 {
-            goalCompleted = true
-        }
-
+        // ✅ ما عاد نعتمد على streak؛ نتحقق من نهاية الفترة
         saveActionDate()
         saveData()
+        checkGoalPeriod()
     }
 
     // 🔵 المستخدم ضغط زر "تجميد"
@@ -97,19 +131,15 @@ class ActivityViewModel: ObservableObject {
             isFreezedToday = true
             freezedDays += 1
             freezedDaysSet.insert(day)
-            streakCount += 1
 
-            // سجل اليوم كتاريخ كامل ليظهر في التقويم الكامل
             setState(for: Date(), .freezed)
             saveDayStates()
         }
 
-        if streakCount >= 3 {
-            goalCompleted = true
-        }
-
+        // ✅ ما عاد نعتمد على streak؛ نتحقق من نهاية الفترة
         saveActionDate()
         saveData()
+        checkGoalPeriod()
     }
 
     // 🕛 حفظ تاريخ آخر مرة ضغط فيها المستخدم
@@ -131,7 +161,8 @@ class ActivityViewModel: ObservableObject {
         UserDefaults.standard.set(learnedArray, forKey: "learnedDaysSet")
         UserDefaults.standard.set(freezedArray, forKey: "freezedDaysSet")
         UserDefaults.standard.set(maxFreezes, forKey: "maxFreezes")
-
+        // learningTopic محفوظ تلقائي في didSet
+        // goalStartDate & goalDurationDays محفوظين في didSet أيضًا
     }
 
     // 🔁 تحميل البيانات المحفوظة
@@ -149,11 +180,9 @@ class ActivityViewModel: ObservableObject {
             freezedDaysSet = Set(freezedArray)
         }
 
-        // 👇 مهم: يكون خارج if السابقة عشان ينقرأ دايمًا
         let savedMax = UserDefaults.standard.integer(forKey: "maxFreezes")
         if savedMax > 0 { maxFreezes = savedMax }
     }
-
 
     // 🔄 إعادة التهيئة عند اختيار مادة جديدة
     func resetProgress() {
@@ -166,27 +195,39 @@ class ActivityViewModel: ObservableObject {
         learnedDaysSet.removeAll()
         freezedDaysSet.removeAll()
         dayStates.removeAll()
+        goalStartDate = nil
+        // ما نغيّر goalDurationDays هنا؛ راح يتضبط عند startGoal()
         saveData()
         saveDayStates()
-        
     }
-    
+
     // MARK: - Initial freeze quota by timeframe
     func configureFreezes(for initialChoiceRawValue: String) {
         switch initialChoiceRawValue {
-        case "Week":
-            self.maxFreezes = 2
-        case "Month":
-            self.maxFreezes = 8
-        case "Year":
-            self.maxFreezes = 96
-        default:
-            break
+        case "Week":  self.maxFreezes = 2
+        case "Month": self.maxFreezes = 8
+        case "Year":  self.maxFreezes = 96
+        default:      break
         }
     }
 
-     
-    
+    // ✅ بدء الهدف حسب المدة المختارة
+    func startGoal(for timeframeRaw: String) {
+        let today = Calendar.current.startOfDay(for: Date())
+        self.goalStartDate = today
+
+        switch timeframeRaw {
+        case "Week":  self.goalDurationDays = 7
+        case "Month": self.goalDurationDays = 30
+        case "Year":  self.goalDurationDays = 365
+        default:      self.goalDurationDays = 7
+        }
+
+        self.goalCompleted = false
+        configureFreezes(for: timeframeRaw)
+        saveData()
+        checkGoalPeriod()
+    }
 
     // 🌙 يتحقق إذا بدأ يوم جديد (بعد ١٢ صباحًا)
     private func checkForNewDay() {
@@ -194,14 +235,35 @@ class ActivityViewModel: ObservableObject {
         let lastDate = UserDefaults.standard.object(forKey: lastActionDateKey) as? Date ?? .distantPast
 
         if today > lastDate {
-            // بدأ يوم جديد → إعادة تعيين الأزرار
             isLearnedToday = false
             isFreezedToday = false
         } else {
-            // نفس اليوم → نترك الحالة كما هي (زر غير قابل للضغط)
             isLearnedToday = UserDefaults.standard.bool(forKey: "isLearnedToday")
             isFreezedToday = UserDefaults.standard.bool(forKey: "isFreezedToday")
         }
+    }
+
+    // MARK: - Goal period helpers
+    private func startOfDay(_ d: Date) -> Date {
+        Calendar.current.startOfDay(for: d)
+    }
+
+    private func daysSinceStart() -> Int {
+        guard let start = goalStartDate else { return 0 }
+        let from = startOfDay(start)
+        let to   = startOfDay(Date())
+        return Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0
+    }
+
+    func checkGoalPeriod() {
+        guard goalDurationDays > 0, goalStartDate != nil else { return }
+        if daysSinceStart() >= goalDurationDays {
+            goalCompleted = true
+        }
+    }
+
+    func remainingDays() -> Int {
+        max(0, goalDurationDays - daysSinceStart())
     }
 
     // MARK: - Day states storage (by full date)
@@ -237,17 +299,14 @@ class ActivityViewModel: ObservableObject {
 
     func color(for date: Date) -> Color {
         switch state(for: date) {
-            case .learned:
-                return Color(red: 162/255, green: 73/255, blue: 33/255) // برتقالي
-            case .freezed:
-                return Color(red: 54/255, green: 124/255, blue: 135/255) // أزرق
-            case .none:
-                return Color.gray.opacity(0.2)
+        case .learned: return Color(red: 162/255, green: 73/255, blue: 33/255) // برتقالي
+        case .freezed: return Color(red: 54/255, green: 124/255, blue: 135/255) // أزرق
+        case .none:    return Color.gray.opacity(0.2)
         }
     }
- 
-
 }
+
+
 
 
 

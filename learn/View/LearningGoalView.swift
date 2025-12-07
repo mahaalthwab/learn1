@@ -7,11 +7,10 @@
 import SwiftUI
 
 struct LearningGoalView: View {
-    @State private var learningTopic: String = ""
     @State private var timeFrame: TimeFrame = .month
     @State private var navigateToActivity = false
-    @State private var showConfirmation = false // ✅ حالة ظهور شعار التأكيد
-    @EnvironmentObject private var viewModel: ActivityViewModel // ← استخدام نفس الموديل المشترك
+    @State private var showConfirmation = false
+    @EnvironmentObject private var viewModel: ActivityViewModel
 
     enum TimeFrame: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -24,7 +23,6 @@ struct LearningGoalView: View {
         NavigationStack {
             ZStack {
                 VStack(alignment: .leading, spacing: 30) {
-                    
                     // العنوان وحقل الإدخال
                     VStack(alignment: .leading, spacing: 10) {
                         Text("I want to learn")
@@ -32,12 +30,12 @@ struct LearningGoalView: View {
                             .font(.system(size: 20, weight: .medium))
                         
                         ZStack(alignment: .leading) {
-                            if learningTopic.isEmpty {
+                            if viewModel.learningTopic.isEmpty {
                                 Text("Swift")
                                     .foregroundColor(.gray)
                                     .opacity(0.6)
                             }
-                            TextField("", text: $learningTopic)
+                            TextField("", text: $viewModel.learningTopic)
                                 .foregroundColor(.white)
                                 .font(.system(size: 18))
                                 .padding(.vertical, 8)
@@ -58,9 +56,7 @@ struct LearningGoalView: View {
                         HStack(spacing: 16) {
                             ForEach(TimeFrame.allCases) { frame in
                                 Button(action: {
-                                    withAnimation(.spring()) {
-                                        timeFrame = frame
-                                    }
+                                    withAnimation(.spring()) { timeFrame = frame }
                                 }) {
                                     Text(frame.rawValue)
                                         .font(.system(size: 16, weight: .semibold))
@@ -94,17 +90,16 @@ struct LearningGoalView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 40)
                 
-                // ✅ التنقل
+                // ✅ التنقل (بدون topic)
                 .navigationDestination(isPresented: $navigateToActivity) {
-                    ActivityView(topic: learningTopic)
-                        .environmentObject(viewModel) // ← تمرير نفس الموديل
+                    ActivityView()
+                        .environmentObject(viewModel)
                 }
                 
                 // ✅ مربع التأكيد
                 if showConfirmation {
                     ZStack {
-                        Color.black.opacity(0.6)
-                            .ignoresSafeArea()
+                        Color.black.opacity(0.6).ignoresSafeArea()
                         
                         VStack(spacing: 16) {
                             Text("Update Learning goal")
@@ -119,9 +114,7 @@ struct LearningGoalView: View {
                             
                             HStack(spacing: 16) {
                                 Button(action: {
-                                    withAnimation {
-                                        showConfirmation = false
-                                    }
+                                    withAnimation { showConfirmation = false }
                                 }) {
                                     Text("Dismiss")
                                         .font(.headline)
@@ -134,14 +127,9 @@ struct LearningGoalView: View {
                                 
                                 Button(action: {
                                     withAnimation {
-                                        // ✅ تصفير كل القيم
+                                        // ✅ نعيد التقدّم ثم نبدأ الهدف بالفترة المختارة (يضبط startDate + المدة + التجميد)
                                         viewModel.resetProgress()
-                                        // ✅ ضبط عدد التجميد حسب المدة الجديدة
-                                        viewModel.configureFreezes(for: timeFrame.rawValue)
-                                        // (اختياري) نحفظ الموضوع لو تبين تستخدمينه لاحقًا
-                                        // UserDefaults.standard.set(learningTopic, forKey: "learningTopic")
-                                        UserDefaults.standard.set(viewModel.maxFreezes, forKey: "maxFreezes")
-
+                                        viewModel.startGoal(for: timeFrame.rawValue)
                                         showConfirmation = false
                                         navigateToActivity = true
                                     }
@@ -168,13 +156,10 @@ struct LearningGoalView: View {
             }
             .navigationTitle("Learning Goal")
             .navigationBarTitleDisplayMode(.inline)
-            
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation {
-                            showConfirmation = true
-                        }
+                        withAnimation { showConfirmation = true }
                     } label: {
                         Image("check")
                             .resizable()
@@ -184,14 +169,21 @@ struct LearningGoalView: View {
                 }
             }
             .onAppear {
-                switch viewModel.maxFreezes {
-                case 2:   timeFrame = .week
-                case 8:   timeFrame = .month
-                case 96:  timeFrame = .year
-                default:  break
+                // ✅ نختار الزر المناسب بحسب مدة الهدف المحفوظة
+                switch viewModel.goalDurationDays {
+                case 7:   timeFrame = .week
+                case 30:  timeFrame = .month
+                case 365: timeFrame = .year
+                default:
+                    // fallback قديم يعتمد على maxFreezes في حال المستخدم لسه ما بدأ هدف
+                    switch viewModel.maxFreezes {
+                    case 2:   timeFrame = .week
+                    case 8:   timeFrame = .month
+                    case 96:  timeFrame = .year
+                    default:  timeFrame = .month
+                    }
                 }
             }
-
         }
     }
 }
@@ -200,3 +192,6 @@ struct LearningGoalView: View {
     LearningGoalView()
         .environmentObject(ActivityViewModel())
 }
+
+
+
